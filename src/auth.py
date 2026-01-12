@@ -82,7 +82,7 @@ def authenticate():
                             print(f"⚠ Created {temp_token_file} instead. Please remove old {token_file}")
                             return build('drive', 'v3', credentials=creds)
                     except Exception as e2:
-  raise PermissionError(
+                        raise PermissionError(
                             f"Cannot write token file. Error: {e2}. "
                             f"Please run: sudo chown $USER:$USER {token_file} or remove it manually."
                         )
