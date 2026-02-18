@@ -344,6 +344,30 @@ MAIN_TEMPLATE = """
             width: auto;
         }
         
+        .status-indicator {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .status-missing {
+            background: #fff5f5;
+            color: #d32f2f;
+            border: 1px solid #ffcdd2;
+        }
+        .status-ok {
+            background: #f1f8e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+
+        
         .footer {
             background: white;
             padding: 12px 20px;
@@ -372,6 +396,21 @@ MAIN_TEMPLATE = """
         </div>
         
         <div class="content">
+            <div class="form-section" id="credentials-section">
+                <h2>🔑 API Configuration</h2>
+                <div id="credentials-status" class="status-indicator">
+                    Checking credentials...
+                </div>
+                <div class="form-group" style="margin-top: 10px;">
+                    <label for="credentials-file">Update credentials.json</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="file" id="credentials-file" accept=".json" style="flex: 1; padding: 5px;">
+                        <button type="button" class="btn btn-secondary" id="upload-btn" style="padding: 5px 15px; height: 38px;">Upload</button>
+                    </div>
+                    <small>Required to access Google Drive API. Download this file from Google Cloud Console.</small>
+                </div>
+            </div>
+
             <div class="form-section">
                 <h2>Extraction Configuration</h2>
                 
@@ -698,6 +737,66 @@ MAIN_TEMPLATE = """
                 showResults(data);
             }
         });
+
+        async function checkCredentials() {
+            try {
+                const response = await fetch('/api/check-credentials');
+                const data = await response.json();
+                const statusEl = document.getElementById('credentials-status');
+                const startBtn = document.getElementById('start-btn');
+                
+                if (data.exists) {
+                    statusEl.textContent = '✓ credentials.json is present and ready.';
+                    statusEl.className = 'status-indicator status-ok';
+                    startBtn.disabled = false;
+                    startBtn.title = '';
+                } else {
+                    statusEl.textContent = '✗ credentials.json is missing. Please upload it to continue.';
+                    statusEl.className = 'status-indicator status-missing';
+                    startBtn.disabled = true;
+                    startBtn.title = 'Please upload credentials.json first';
+                }
+            } catch (error) {
+                console.error('Error checking credentials:', error);
+            }
+        }
+
+        document.getElementById('upload-btn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('credentials-file');
+            if (fileInput.files.length === 0) {
+                alert('Please select a file first.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (file.name !== 'credentials.json') {
+                if (!confirm('The file is not named "credentials.json". Are you sure you want to upload it? The app expects this exact name.')) {
+                    return;
+                }
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/upload-credentials', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Credentials uploaded successfully!');
+                    checkCredentials();
+                } else {
+                    alert('Upload failed: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error uploading file: ' + error.message);
+            }
+        });
+
+        checkCredentials();
     </script>
 </body>
 </html>
@@ -864,6 +963,36 @@ def run_extraction(folder_id, output_name, workers, include_trashed, export_form
 def index():
     """Main page"""
     return render_template_string(MAIN_TEMPLATE)
+
+
+@app.route('/api/check-credentials')
+def check_credentials():
+    """Check if credentials.json exists"""
+    exists = os.path.exists('credentials.json')
+    return jsonify({'exists': exists})
+
+
+@app.route('/api/upload-credentials', methods=['POST'])
+def upload_credentials():
+    """Upload credentials.json"""
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file part'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No selected file'}), 400
+    
+    try:
+        file.save('credentials.json')
+        if os.path.exists('token.json'):
+            try:
+                os.remove('token.json')
+            except:
+                pass
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 
 @app.route('/api/start-extraction', methods=['POST'])
