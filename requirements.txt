@@ -6,7 +6,7 @@ reportlab==4.0.7
 python-dateutil==2.8.2
 tqdm==4.66.3
 flask==3.1.3
-flask-cors==4.0.1
+flask-cors==5.0.0
 PyPDF2==3.0.1
 pillow>=10.0.0 # not directly required, pinned by Snyk to avoid a vulnerability
 urllib3>=1.26.19 # not directly required, pinned by Snyk to avoid a vulnerability
